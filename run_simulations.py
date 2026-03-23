@@ -107,64 +107,7 @@ def generate_pdf_report(results, image_paths, filename="report.pdf"):
         elements.append(Spacer(1, 20))
 
     doc.build(elements)
-    # doc = SimpleDocTemplate(filename)
-    # styles = getSampleStyleSheet()
-    # elements = []
-
-    # elements.append(Paragraph("Monte Carlo Simulation Report", styles["Title"]))
-    # elements.append(Spacer(1, 12))
-
-    # for ticker, model_data in results.items():
-    #     elements.append(Paragraph(f"{ticker}", styles["Heading2"]))
-
-    #     for model_name, metrics in model_data.items():
-    #         elements.append(Paragraph(f"{model_name} Metrics:", styles["Heading3"]))
-
-    #         mean_obs = metrics["mean"]["observed"]
-    #         mean_sim = metrics["mean"]["simulated"]
-
-    #         std_obs = metrics["std"]["observed"]
-    #         std_sim = metrics["std"]["simulated"]
-
-    #         kurt_obs = metrics["kurtosis"]["observed"]
-    #         kurt_sim = metrics["kurtosis"]["simulated"]
-
-    #         elements.append(Paragraph(
-    #             f"Mean (obs vs sim): {mean_obs:.6f} vs {mean_sim:.6f}",
-    #             styles["Normal"]
-    #         ))
-    #         elements.append(Paragraph(
-    #             f"Std Dev (obs vs sim): {std_obs:.6f} vs {std_sim:.6f}",
-    #             styles["Normal"]
-    #         ))
-    #         elements.append(Paragraph(
-    #             f"Kurtosis (obs vs sim): {kurt_obs:.4f} vs {kurt_sim:.4f}",
-    #             styles["Normal"]
-    #         ))
-            
-    #         elements.append(Spacer(1, 6))
-
-    #         # Add images
-    #         if (ticker, model_name) in image_paths:
-    #             elements.append(Image(image_paths[(ticker, model_name)], width=400, height=250))
-    #             elements.append(Spacer(1, 12))
-
-    #         acf_key = (ticker, f"{model_name} ACF")
-    #         if acf_key in image_paths:
-    #             elements.append(Image(image_paths[acf_key], width=400, height=250))
-    #             elements.append(Spacer(1, 12))
-
-    #         hist_key = (ticker, f"{model_name} HIST")
-    #         if hist_key in image_paths:
-    #             elements.append(Image(image_paths[hist_key], width=400, height=250))
-    #             elements.append(Spacer(1, 12))
-
-    #         posterior_keys = ["HMC PIT", "GARCH PIT", "HMC Interval", "GARCH Interval"]
-    #         if posterior_keys in image_paths:
-    #             elements.append(Image(image_paths[posterior_keys], width=400, height=250))
-    #             elements.append(Spacer(1, 12))
-
-    # doc.build(elements)
+ 
 
 tickers = {
     "PREIX": "T. Rowe S&P 500 Index Fund",

@@ -32,7 +32,7 @@ class IndexSimulator:
         states = ["Down", "Stagnant", "Up"]
         transition_counts = pd.crosstab(prev_states, self.Markov_states)
         transition_counts = transition_counts.reindex(index=states, columns=states, fill_value=0)
-        row_sums = transition_counts.sum(axis=1).replace(0, 1)
+        row_sums = transition_counts.sum(axis=1).replace(0, 1) #alt is transition_counts = transition_counts + 1e-6
         self.transition_matrix = transition_counts.div(row_sums, axis=0)
         self.equilibrium_matrix = self.find_equilibrium(self.transition_matrix)
     
@@ -71,7 +71,7 @@ class IndexSimulator:
         return stationary
 
     # Model fitting
-    def fit_hmc_sv(self):
+    def fit_hmc_sv(self, draws=2000, tune=2000):
         # Build PyMC model, sample posterior
         T = len(self.log_returns)
 
@@ -116,8 +116,8 @@ class IndexSimulator:
                 observed=self.log_returns
             )
             self.HMC_trace = pm.sample(
-                draws=2000, #posteriar samples
-                tune=2000,
+                draws=draws, #posteriar samples
+                tune=tune,
                 target_accept=0.95, #slower runtime, should improve accuracy
                 chains=4, #need to rerun as 4!
                 cores=2
@@ -316,6 +316,22 @@ class IndexSimulator:
         obs_std = self.returns.std()
         obs_kurt = pd.Series(self.returns).kurtosis()
 
+        # Tail Levels (VaR)
+        levels = [1, 5] # 1% and 5% tail risk
+        obs_var = np.percentile(self.returns, levels)
+        sim_var = np.percentile(sim_returns_array, levels)
+
+        # --- Expected Shortfall (ES) Calculation ---
+        # Mean of returns that are worse than the VaR threshold
+        obs_es = {
+            f"ES_{lvl}": self.returns[self.returns <= obs_var[i]].mean() 
+            for i, lvl in enumerate(levels)
+        }
+        sim_es = {
+            f"ES_{lvl}": sim_returns_array[sim_returns_array <= sim_var[i]].mean() 
+            for i, lvl in enumerate(levels)
+        }
+
         # ACF
         obs_acf = acf(self.returns**2, nlags=20)
         sim_acfs = [acf(sim**2, nlags=20) for sim in sim_returns_array]
@@ -331,6 +347,13 @@ class IndexSimulator:
             "mean": {"observed": obs_mean, "simulated": sim_means.mean()},
             "std": {"observed": obs_std, "simulated": sim_stds.mean()},
             "kurtosis": {"observed": obs_kurt, "simulated": np.mean(sim_kurtosis)},
+            "tail_risk": {
+                "levels": levels,
+                "VaR_obs": obs_var,
+                "VaR_sim": sim_var,
+                "ES_obs": obs_es,
+                "ES_sim": sim_es
+            },
             "distributions": {
                 "sim_means": sim_means,
                 "sim_stds": sim_stds
@@ -496,10 +519,8 @@ class IndexSimulator:
         }
 
     def posterior_predictive_checks_garch(self, test_returns, n_sim=2000):
-        """
-        Run sequential posterior predictive checks using fitted GARCH model.
-        Returns coverage, interval widths, PIT, and log predictive likelihoods.
-        """
+        #sequential posterior predictive checks using fitted GARCH model.
+        #returns = coverage, interval widths, PIT, and log predictive likelihoods.
         params = self.garch_res.params
         mu = params['mu']
         omega = params['omega']
@@ -565,9 +586,7 @@ class IndexSimulator:
             plt.show()
 
     def plot_interval_coverage(self, lower_bounds, upper_bounds, actual_returns, title="Predictive Intervals", save_path=None):
-        """
-        Overlay predictive intervals and actual returns
-        """
+        #predictive intervals overlayed w/ actual returns
         plt.figure(figsize=(10, 4))
         plt.fill_between(
             np.arange(len(actual_returns)),
