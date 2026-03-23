@@ -33,9 +33,9 @@ Below is a summary of performance across the **PREIX** (Equities) dataset:
 * **Coverage Accuracy:** GARCH provides superior interval calibration, while HMC offers tighter (more precise) but less accurate intervals.
 
 ## 🛠 Installation & Usage
-1. Clone the repo: `git clone https://github.com/your-username/repo-name.git`
+1. Clone the repo: `git clone https://github.com/codeToad101/Equity-MCMC`
 2. Install dependencies: `pip install -r requirements.txt`
-3. Run the simulation: `python run_simulation.py --asset SPY`
+3. Run the simulation: `python run_simulations.py`
 
 ## 📝 Technical Paper
 A full mathematical recap of the Hamiltonian dynamics and the PIT validation logic coming soon.
