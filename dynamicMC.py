@@ -91,7 +91,9 @@ class IndexSimulator:
             #mu_h = pm.Normal("mu_h", mu=5, sigma=2) #shift in h[0] to reflect scaled data
 
             # ----- Latent log volatility -----
-            h = pm.AR( #h_t evolves as AR(1)
+            #mu_h = pm.Normal("mu_h", mu=0, sigma=5)
+
+            h = pm.AR( #h_t evolves as AR(1), centered at 0 for computational capability
                 "h",
                 rho=phi,
                 sigma=sigma_eta,
@@ -158,14 +160,15 @@ class IndexSimulator:
             phi_draw = posterior["phi"].values.flatten()[draw_idx]
             sigma_eta_draw = posterior["sigma_eta"].values.flatten()[draw_idx]
             mu_draw = posterior["mu"].values.flatten()[draw_idx]
+            #mu_h_draw = posterior["mu_h"].values.flatten()[draw_idx]
             nu_draw = posterior["nu"].values.flatten()[draw_idx]
     
             for n in range(1, horizon):
                 h_sim[n] = phi_draw * h_sim[n-1] + sigma_eta_draw * np.random.randn()
-                h_sim[n] = np.clip(h_sim[n], -10, 10)
-                #h_sim[n] = mu_draw + phi_draw * (h_sim[n-1] - mu_draw) + sigma_eta_draw * np.random.randn() #centered at mu_draw rather than 0, more fair
+                #h_sim[n] = np.clip(h_sim[n], -10, 10)
+                #h_sim[n] = mu_h_draw + phi_draw * (h_sim[n-1] - mu_h_draw) + sigma_eta_draw * np.random.randn() #centered at mu_draw rather than 0, more fair
                 z = t.rvs(df=nu_draw)
-                z = np.clip(z, -10, 10)
+                #z = np.clip(z, -10, 10)
                 #z = z / np.sqrt(nu_draw / (nu_draw - 2)) #scales z val according to prev. scales
                 r_sim[n] = mu_draw + np.exp(h_sim[n] / 2) * z #altered random (Gaussian dist) to match T
                 price_sim[n] = price_sim[n-1] * np.exp(r_sim[n] / 100)
@@ -305,11 +308,13 @@ class IndexSimulator:
         # Mean, std, kurtosis, tail percentiles, ACF
         simulated_returns = simulated_paths_df.pct_change().dropna()
         sim_returns_array = simulated_returns.values.T
+        #sim_returns_flat = simulated_returns.values.reshape(-1, simulated_returns.values.shape[-1])
 
         # Path-level stats
         sim_means = sim_returns_array.mean(axis=1)
         sim_stds = sim_returns_array.std(axis=1)
-        sim_kurtosis = [pd.Series(sim).kurtosis() for sim in sim_returns_array]
+        sim_kurtosis = pd.Series(sim_returns_array.flatten()).kurtosis()
+        #sim_kurtosis = [pd.Series(sim).kurtosis() for sim in sim_returns_flat]
 
         # Observed stats
         obs_mean = self.returns.mean()
@@ -454,6 +459,7 @@ class IndexSimulator:
         phi_draws = posterior["phi"].values.flatten()
         sigma_eta_draws = posterior["sigma_eta"].values.flatten()
         mu_draws = posterior["mu"].values.flatten()
+        #mu_h_draws = posterior["mu_h"].values.flatten()
         nu_draws = posterior["nu"].values.flatten()
         h_current = posterior["h"].values[:, -1].flatten()  # last latent h
 
@@ -461,6 +467,7 @@ class IndexSimulator:
         phi = phi_draws[idx]
         sigma_eta = sigma_eta_draws[idx]
         mu = mu_draws[idx]
+        #mu_h = mu_h_draws[idx]
         nu = nu_draws[idx]
         h_particles = h_current[idx]
 
@@ -473,9 +480,9 @@ class IndexSimulator:
         for actual_return in test_returns:
             # --- PREDICT STEP ---
             noise = np.random.randn(n_particles)
-            #h_particles = mu + phi * (h_particles - mu) + sigma_eta * noise
-            h_particles = phi * (h_particles - mu) + sigma_eta * noise #recall, not centered at mu
-            h_particles = np.clip(h_particles, -10, 5)
+            #h_particles = mu_h + phi * (h_particles - mu_h) + sigma_eta * noise
+            h_particles = phi * h_particles + sigma_eta * noise #recall, not centered at mu
+            #h_particles = np.clip(h_particles, -10, 5)
 
             z = t.rvs(df=nu, size=n_particles)
             r_particles = mu + np.exp(h_particles / 2) * z
