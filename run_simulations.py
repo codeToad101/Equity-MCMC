@@ -3,7 +3,7 @@ from dynamicMC import IndexSimulator
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Image
 from reportlab.lib.styles import getSampleStyleSheet
 
-def generate_pdf_report(results, image_paths, filename="report.pdf"):
+def generate_pdf_report(results, image_paths, filename="volReport.pdf"):
     doc = SimpleDocTemplate(filename)
     styles = getSampleStyleSheet()
     elements = []
@@ -29,8 +29,11 @@ def generate_pdf_report(results, image_paths, filename="report.pdf"):
             std_obs = metrics["std"]["observed"]
             std_sim = metrics["std"]["simulated"]
 
-            kurt_obs = metrics["kurtosis"]["observed"]
-            kurt_sim = metrics["kurtosis"]["simulated"]
+            kurt_obs = metrics["flattened kurtosis"]["observed"]
+            flat_kurt_sim = metrics["flattened kurtosis"]["simulated"]
+
+            #path_kurt_obs = metrics["path kurtosis"]["observed"]
+            path_kurt_sim = metrics["path kurtosis"]["simulated"]
 
             elements.append(Paragraph(
                 f"Mean (obs vs sim): {mean_obs:.6f} vs {mean_sim:.6f}",
@@ -41,7 +44,15 @@ def generate_pdf_report(results, image_paths, filename="report.pdf"):
                 styles["Normal"]
             ))
             elements.append(Paragraph(
-                f"Kurtosis (obs vs sim): {kurt_obs:.4f} vs {kurt_sim:.4f}",
+                f"Observed Kurtosis: {kurt_obs:.4f}",
+                styles["Normal"]
+            ))
+            elements.append(Paragraph(
+                f"Flattened Kurtosis (sim): {flat_kurt_sim:.4f}",
+                styles["Normal"]
+            ))
+            elements.append(Paragraph(
+                f"Path-Wise Kurtosis (sim): {path_kurt_sim:.4f}",
                 styles["Normal"]
             ))
 
@@ -108,13 +119,21 @@ def generate_pdf_report(results, image_paths, filename="report.pdf"):
 
     doc.build(elements)
  
+# tickers = { #stable equity iteration
+#     "PREIX": "T. Rowe S&P 500 Index Fund",
+#     "SPY": "S&P 500",
+#     "QQQ": "NASDAQ 100",
+#     "DIA": "Dow Jones",
+#     "IWM": "Russell 2000"
+# }
 
-tickers = {
+tickers = { #unstable equity iteration
     "PREIX": "T. Rowe S&P 500 Index Fund",
-    "SPY": "S&P 500",
-    "QQQ": "NASDAQ 100",
-    "DIA": "Dow Jones",
-    "IWM": "Russell 2000"
+    "TSLA": "Tesla",
+    "PLTR": "Palantir",
+    "COIN": "Coinbase",
+    "MRNA": "Moderna",
+    "GME": "Gamestop"
 }
 
 # data = yf.download("SPY", period="10y")
@@ -166,9 +185,9 @@ for ticker, name in tickers.items():
     }
 
     # Save plots instead of showing
-    hmc_MCsim_path = f"outputs/images/{ticker}_hmc_MCsim.png"
-    garch_MCsim_path = f"outputs/images/{ticker}_garch_MCsim.png"
-    emp_MCsim_path = f"outputs/images/{ticker}_emp_MCsim.png"
+    hmc_MCsim_path = f"outputs/unstableImages/{ticker}_hmc_MCsim.png"
+    garch_MCsim_path = f"outputs/unstableImages/{ticker}_garch_MCsim.png"
+    emp_MCsim_path = f"outputs/unstableImages/{ticker}_emp_MCsim.png"
 
     # Plots (optional)
     sim.plot_paths(hmc_paths, title=f"{ticker} HMC Monte Carlo Paths", save_path=hmc_MCsim_path)
@@ -179,9 +198,9 @@ for ticker, name in tickers.items():
     image_paths[(ticker, "EMP")] = emp_MCsim_path
 
     # Save plots instead of showing
-    hmc_acf_path = f"outputs/images/{ticker}_hmc_acf.png"
-    garch_acf_path = f"outputs/images/{ticker}_garch_acf.png"
-    emp_acf_path = f"outputs/images/{ticker}_emp_acf.png"
+    hmc_acf_path = f"outputs/unstableImages/{ticker}_hmc_acf.png"
+    garch_acf_path = f"outputs/unstableImages/{ticker}_garch_acf.png"
+    emp_acf_path = f"outputs/unstableImages/{ticker}_emp_acf.png"
 
     # Plots (optional)
     sim.plot_acf(hmc_metrics, title=f"{ticker} HMC ACF", save_path=hmc_acf_path)
@@ -191,9 +210,9 @@ for ticker, name in tickers.items():
     image_paths[(ticker, "GARCH ACF")] = garch_acf_path
     image_paths[(ticker, "EMP ACF")] = emp_acf_path
 
-    hmc_hist_path = f"outputs/images/{ticker}_hmc_hist.png"
-    garch_hist_path = f"outputs/images/{ticker}_garch_hist.png"
-    emp_hist_path = f"outputs/images/{ticker}_emp_hist.png"
+    hmc_hist_path = f"outputs/unstableImages/{ticker}_hmc_hist.png"
+    garch_hist_path = f"outputs/unstableImages/{ticker}_garch_hist.png"
+    emp_hist_path = f"outputs/unstableImages/{ticker}_emp_hist.png"
 
     sim.plot_mean_std_hist(hmc_metrics, title=f"{ticker} HMC", save_path=hmc_hist_path)
     sim.plot_mean_std_hist(garch_metrics, title=f"{ticker} GARCH", save_path=garch_hist_path)
@@ -204,14 +223,14 @@ for ticker, name in tickers.items():
     image_paths[(ticker, "EMP HIST")] = emp_hist_path
 
     # Example usage after running posterior checks
-    hmc_pit_path = f"outputs/images/{ticker}_hmc_pit.png"
-    garch_pit_path = f"outputs/images/{ticker}_garch_pit.png"
+    hmc_pit_path = f"outputs/unstableImages/{ticker}_hmc_pit.png"
+    garch_pit_path = f"outputs/unstableImages/{ticker}_garch_pit.png"
 
     sim.plot_pit_hist(hmc_posterior["pit_values"], title=f"{ticker} HMC PIT", save_path=hmc_pit_path)
     sim.plot_pit_hist(garch_posterior["pit_values"], title=f"{ticker} GARCH PIT", save_path=garch_pit_path)
 
-    hmc_interval_path = f"outputs/images/{ticker}_hmc_intervals.png"
-    garch_interval_path = f"outputs/images/{ticker}_garch_intervals.png"
+    hmc_interval_path = f"outputs/unstableImages/{ticker}_hmc_intervals.png"
+    garch_interval_path = f"outputs/unstableImages/{ticker}_garch_intervals.png"
 
     sim.plot_interval_coverage(
         hmc_posterior["intervals"]["lower"],

@@ -1,5 +1,6 @@
 #abstracted iteraction of prev. models
 import numpy as np
+import arviz as az
 import pandas as pd
 import pymc as pm
 import pytensor.tensor as pt
@@ -84,20 +85,21 @@ class IndexSimulator:
             u = pm.Beta("u", alpha=1, beta=1)
             phi = pm.Deterministic("phi", 2 * u - 1) #uniform (-1, 1)
 
-            #not strict, clustered under 1
-            #sigma_eta = pm.HalfNormal("sigma_eta", sigma=0.5) #movement of volatility
-            sigma_eta = pm.HalfNormal("sigma_eta", sigma=1.5)
+            #movement of volatility
+            #sigma_eta = pm.HalfNormal("sigma_eta", sigma=1.5) #for non-volatile stocks
+            sigma_eta = pm.HalfNormal("sigma_eta", sigma=0.2) #for volatile stocks
 
             #mu_h = pm.Normal("mu_h", mu=5, sigma=2) #shift in h[0] to reflect scaled data
 
             # ----- Latent log volatility -----
             #mu_h = pm.Normal("mu_h", mu=0, sigma=5)
+            #c = pm.Deterministic("c", mu_h * (1 - phi))
 
             h = pm.AR( #h_t evolves as AR(1), centered at 0 for computational capability
                 "h",
                 rho=phi,
                 sigma=sigma_eta,
-                constant=False,
+                constant=False, #from c = false to c for recenter attempt
                 shape=T
             )
 
@@ -124,6 +126,11 @@ class IndexSimulator:
                 chains=4, #need to rerun as 4!
                 cores=2
             )
+            summary = az.summary(self.HMC_trace, var_names=["mu", "phi", "sigma_eta", "nu"])
+            print(summary[["r_hat", "ess_bulk"]])
+
+            # divs = self.HMC_trace.sample_stats["diverging"].sum().values
+            # print("Divergences:", divs)
             #pass
     
     def fit_garch(self):
@@ -165,11 +172,11 @@ class IndexSimulator:
     
             for n in range(1, horizon):
                 h_sim[n] = phi_draw * h_sim[n-1] + sigma_eta_draw * np.random.randn()
-                #h_sim[n] = np.clip(h_sim[n], -10, 10)
+                h_sim[n] = np.clip(h_sim[n], -10, 10) #for vol. stocks
                 #h_sim[n] = mu_h_draw + phi_draw * (h_sim[n-1] - mu_h_draw) + sigma_eta_draw * np.random.randn() #centered at mu_draw rather than 0, more fair
                 z = t.rvs(df=nu_draw)
-                #z = np.clip(z, -10, 10)
-                #z = z / np.sqrt(nu_draw / (nu_draw - 2)) #scales z val according to prev. scales
+                z = np.clip(z, -10, 10) #for vol. stocks
+                z = z / np.sqrt(nu_draw / (nu_draw - 2)) #scales z val according to prev. scales
                 r_sim[n] = mu_draw + np.exp(h_sim[n] / 2) * z #altered random (Gaussian dist) to match T
                 price_sim[n] = price_sim[n-1] * np.exp(r_sim[n] / 100)
     
@@ -227,17 +234,17 @@ class IndexSimulator:
                 z_t = np.random.standard_t(df=nu) * np.sqrt((nu - 2) / nu) #shocks standardized s.t. they have unit variance (less severe results)
 
                 # Optional regime mean shift
-                regime_shift = {
-                    "Up": 0.05,
-                    "Down": -0.05,
-                    "Stagnant": 0.0
-                }
+                # regime_shift = {
+                #     "Up": 0.05,
+                #     "Down": -0.05,
+                #     "Stagnant": 0.0
+                # }
 
                 # Generate return
                 #daily_return = mu + sigma_t * z_t
                 #daily_return = mu + regime_shift[current_state] + sigma_t * z_t
                 innovation = sigma_t * z_t
-                daily_return = mu + regime_shift[current_state] + innovation
+                daily_return = mu + innovation
                 r_prev = innovation
 
                 # Store residual for next iteration
@@ -313,7 +320,10 @@ class IndexSimulator:
         # Path-level stats
         sim_means = sim_returns_array.mean(axis=1)
         sim_stds = sim_returns_array.std(axis=1)
-        sim_kurtosis = pd.Series(sim_returns_array.flatten()).kurtosis()
+        flattened_sim_kurtosis = pd.Series(sim_returns_array.flatten()).kurtosis()
+        path_sim_kurtosis = np.mean([
+            pd.Series(path).kurtosis() for path in sim_returns_array
+        ])
         #sim_kurtosis = [pd.Series(sim).kurtosis() for sim in sim_returns_flat]
 
         # Observed stats
@@ -351,7 +361,8 @@ class IndexSimulator:
         return {
             "mean": {"observed": obs_mean, "simulated": sim_means.mean()},
             "std": {"observed": obs_std, "simulated": sim_stds.mean()},
-            "kurtosis": {"observed": obs_kurt, "simulated": np.mean(sim_kurtosis)},
+            "flattened kurtosis": {"observed": obs_kurt, "simulated": np.mean(flattened_sim_kurtosis)},
+            "path kurtosis": {"observed": obs_kurt, "simulated": np.mean(path_sim_kurtosis)},
             "tail_risk": {
                 "levels": levels,
                 "VaR_obs": obs_var,
@@ -461,7 +472,7 @@ class IndexSimulator:
         mu_draws = posterior["mu"].values.flatten()
         #mu_h_draws = posterior["mu_h"].values.flatten()
         nu_draws = posterior["nu"].values.flatten()
-        h_current = posterior["h"].values[:, -1].flatten()  # last latent h
+        h_current = posterior["h"].values[:, :, -1].flatten()  # last latent h
 
         idx = np.random.choice(len(phi_draws), size=n_particles, replace=True)
         phi = phi_draws[idx]
@@ -482,9 +493,10 @@ class IndexSimulator:
             noise = np.random.randn(n_particles)
             #h_particles = mu_h + phi * (h_particles - mu_h) + sigma_eta * noise
             h_particles = phi * h_particles + sigma_eta * noise #recall, not centered at mu
-            #h_particles = np.clip(h_particles, -10, 5)
+            h_particles = np.clip(h_particles, -10, 5) #for vol. stocks
 
             z = t.rvs(df=nu, size=n_particles)
+            z = z / np.sqrt(nu / (nu - 2))  # normalize variance
             r_particles = mu + np.exp(h_particles / 2) * z
 
             # PIT
